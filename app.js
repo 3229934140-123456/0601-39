@@ -1211,8 +1211,12 @@ function onCropDrag(e) {
     
     if (ratio) {
       const handle = cropState.dragType;
-      let dx = e.clientX - cropState.startX;
-      dy = e.clientY - cropState.startY;
+      const dx = e.clientX - cropState.startX;
+      const dy = e.clientY - cropState.startY;
+      
+      const cropArea = $('cropArea');
+      const areaW = cropArea.clientWidth;
+      const areaH = cropArea.clientHeight;
       
       let newW = cropState.startCropW;
       let newH = cropState.startCropH;
@@ -1222,84 +1226,75 @@ function onCropDrag(e) {
       if (handle === 'se') {
         newW = cropState.startCropW + dx;
         newH = newW / ratio;
-        if (newH < minSize) {
-          newH = minSize;
-          newW = newH * ratio;
-        }
+        if (newH < minSize) { newH = minSize; newW = newH * ratio; }
+        if (newY + newH > areaH) { newH = areaH - newY; newW = newH * ratio; }
+        if (newX + newW > areaW) { newW = areaW - newX; newH = newW / ratio; }
       } else if (handle === 'sw') {
+        const anchorX = cropState.startCropX + cropState.startCropW;
+        const anchorY = cropState.startCropY;
         newW = cropState.startCropW - dx;
         newH = newW / ratio;
-        if (newH < minSize) {
-          newH = minSize;
-          newW = newH * ratio;
-        }
-        newX = cropState.startCropX + cropState.startCropW - newW;
-        newY = cropState.startCropY + cropState.startCropH - newH;
+        if (newH < minSize) { newH = minSize; newW = newH * ratio; }
+        newX = anchorX - newW;
+        newY = anchorY;
+        if (newX < 0) { newX = 0; newW = anchorX; newH = newW / ratio; }
+        if (newY + newH > areaH) { newH = areaH - newY; newW = newH * ratio; newX = anchorX - newW; }
       } else if (handle === 'ne') {
+        const anchorX = cropState.startCropX;
+        const anchorY = cropState.startCropY + cropState.startCropH;
         newW = cropState.startCropW + dx;
         newH = newW / ratio;
-        if (newH < minSize) {
-          newH = minSize;
-          newW = newH * ratio;
-        }
-        newY = cropState.startCropY + cropState.startCropH - newH;
+        if (newH < minSize) { newH = minSize; newW = newH * ratio; }
+        newX = anchorX;
+        newY = anchorY - newH;
+        if (newX + newW > areaW) { newW = areaW - newX; newH = newW / ratio; newY = anchorY - newH; }
+        if (newY < 0) { newY = 0; newH = anchorY; newW = newH * ratio; }
       } else if (handle === 'nw') {
-        newW = cropState.startCropW + dx;
+        const anchorX = cropState.startCropX + cropState.startCropW;
+        const anchorY = cropState.startCropY + cropState.startCropH;
+        newW = cropState.startCropW - dx;
         newH = newW / ratio;
-        if (newH < minSize) {
-          newH = minSize;
-          newW = newH * ratio;
-        }
-        newX = cropState.startCropX + cropState.startCropW - newW;
-      } else if (handle === 'e' || handle === 'w') {
-        if (handle === 'e') {
-          newW = cropState.startCropW + dx;
-        } else {
-          newW = cropState.startCropW - dx;
-          newX = cropState.startCropX + cropState.startCropW - newW;
-        }
+        if (newH < minSize) { newH = minSize; newW = newH * ratio; }
+        newX = anchorX - newW;
+        newY = anchorY - newH;
+        if (newX < 0) { newX = 0; newW = anchorX; newH = newW / ratio; newY = anchorY - newH; }
+        if (newY < 0) { newY = 0; newH = anchorY; newW = newH * ratio; newX = anchorX - newW; }
+      } else if (handle === 'e') {
+        newW = cropState.startCropW + dx;
         if (newW < minSize) newW = minSize;
         newH = newW / ratio;
         newY = cropState.startCropY + (cropState.startCropH - newH) / 2;
-      } else if (handle === 'n' || handle === 's') {
-        if (handle === 's') {
-          newH = cropState.startCropH + dy;
-        } else {
-          newH = cropState.startCropH - dy;
-          newY = cropState.startCropY + cropState.startCropH - newH;
-        }
+        if (newX + newW > areaW) { newW = areaW - newX; newH = newW / ratio; newY = cropState.startCropY + (cropState.startCropH - newH) / 2; }
+        if (newY < 0) { newY = 0; newH = cropState.startCropY + cropState.startCropH; newW = newH * ratio; }
+        if (newY + newH > areaH) { newH = areaH - newY; newW = newH * ratio; newY = cropState.startCropY + (cropState.startCropH - newH) / 2; }
+      } else if (handle === 'w') {
+        const anchorX = cropState.startCropX + cropState.startCropW;
+        newW = cropState.startCropW - dx;
+        if (newW < minSize) newW = minSize;
+        newH = newW / ratio;
+        newX = anchorX - newW;
+        newY = cropState.startCropY + (cropState.startCropH - newH) / 2;
+        if (newX < 0) { newX = 0; newW = anchorX; newH = newW / ratio; newY = cropState.startCropY + (cropState.startCropH - newH) / 2; }
+        if (newY < 0) { newY = 0; newH = cropState.startCropY + cropState.startCropH; newW = newH * ratio; newX = anchorX - newW; }
+        if (newY + newH > areaH) { newH = areaH - newY; newW = newH * ratio; newX = anchorX - newW; newY = cropState.startCropY + (cropState.startCropH - newH) / 2; }
+      } else if (handle === 's') {
+        newH = cropState.startCropH + dy;
         if (newH < minSize) newH = minSize;
         newW = newH * ratio;
         newX = cropState.startCropX + (cropState.startCropW - newW) / 2;
-      }
-      
-      const cropArea = $('cropArea');
-      const areaW = cropArea.clientWidth;
-      const areaH = cropArea.clientHeight;
-      
-      if (newX < 0) {
-        newX = 0;
-        newW = cropState.startCropX + cropState.startCropW;
-        newH = newW / ratio;
-        newY = cropState.startCropY + (cropState.startCropH - newH) / 2;
-      }
-      if (newY < 0) {
-        newY = 0;
-        newH = cropState.startCropY + cropState.startCropH;
+        if (newY + newH > areaH) { newH = areaH - newY; newW = newH * ratio; newX = cropState.startCropX + (cropState.startCropW - newW) / 2; }
+        if (newX < 0) { newX = 0; newW = cropState.startCropX + cropState.startCropW; newH = newW / ratio; }
+        if (newX + newW > areaW) { newW = areaW - newX; newH = newW / ratio; newX = cropState.startCropX + (cropState.startCropW - newW) / 2; }
+      } else if (handle === 'n') {
+        const anchorY = cropState.startCropY + cropState.startCropH;
+        newH = cropState.startCropH - dy;
+        if (newH < minSize) newH = minSize;
         newW = newH * ratio;
         newX = cropState.startCropX + (cropState.startCropW - newW) / 2;
-      }
-      if (newX + newW > areaW) {
-        newW = areaW - cropState.startCropX;
-        newH = newW / ratio;
-        newY = cropState.startCropY + (cropState.startCropH - newH) / 2;
-        newX = cropState.startCropX;
-      }
-      if (newY + newH > areaH) {
-        newH = areaH - cropState.startCropY;
-        newW = newH * ratio;
-        newX = cropState.startCropX + (cropState.startCropW - newW) / 2;
-        newY = cropState.startCropY;
+        newY = anchorY - newH;
+        if (newY < 0) { newY = 0; newH = anchorY; newW = newH * ratio; newX = cropState.startCropX + (cropState.startCropW - newW) / 2; }
+        if (newX < 0) { newX = 0; newW = cropState.startCropX + cropState.startCropW; newH = newW / ratio; newY = anchorY - newH; }
+        if (newX + newW > areaW) { newW = areaW - newX; newH = newW / ratio; newX = cropState.startCropX + (cropState.startCropW - newW) / 2; newY = anchorY - newH; }
       }
       
       cropState.cropX = newX;
@@ -1964,6 +1959,7 @@ function renderBatchSizes() {
   
   batchState.sizeData = [];
   batchState.selectedSizeIndices = [];
+  batchState.selectedElementIndex = -1;
   
   sizePresets.forEach((preset, index) => {
     const elements = generateSizeElements(preset.width, preset.height);
@@ -2032,6 +2028,7 @@ function generateSizeElements(targetWidth, targetHeight) {
 
 function selectBatchSize(index) {
   batchState.currentSizeIndex = index;
+  batchState.selectedElementIndex = -1;
   updateBatchSizeSelection();
   renderBatchPreview();
 }
@@ -2384,14 +2381,38 @@ function batchExport() {
   const originalElements = JSON.parse(JSON.stringify(state.elements));
   
   let exported = 0;
+  let failed = 0;
   const total = batchState.selectedSizeIndices.length;
+  const failedSizes = [];
   
-  batchState.selectedSizeIndices.forEach((sizeIdx, i) => {
+  const validSizes = [];
+  batchState.selectedSizeIndices.forEach(sizeIdx => {
+    const sizeData = batchState.sizeData[sizeIdx];
+    const w = Number(sizeData.width);
+    const h = Number(sizeData.height);
+    if (!w || !h || w <= 0 || h <= 0 || isNaN(w) || isNaN(h)) {
+      failed++;
+      failedSizes.push(sizeData.name || `尺寸${sizeIdx + 1}`);
+    } else {
+      validSizes.push(sizeIdx);
+    }
+  });
+  
+  if (validSizes.length === 0) {
+    showToast('所有选中的尺寸数据无效，无法导出', 'error');
+    return;
+  }
+  
+  if (failed > 0) {
+    showToast(`已跳过 ${failed} 个无效尺寸：${failedSizes.join('、')}`, 'warning');
+  }
+  
+  validSizes.forEach((sizeIdx, i) => {
     setTimeout(() => {
       const sizeData = batchState.sizeData[sizeIdx];
       
-      state.canvasWidth = sizeData.width;
-      state.canvasHeight = sizeData.height;
+      state.canvasWidth = Number(sizeData.width);
+      state.canvasHeight = Number(sizeData.height);
       state.elements = JSON.parse(JSON.stringify(sizeData.elements));
       
       if (state.canvasBg) {
@@ -2399,22 +2420,39 @@ function batchExport() {
       }
       
       generateCanvasImage().then(dataUrl => {
+        if (!dataUrl || dataUrl.indexOf('data:image') !== 0) {
+          throw new Error('生成的图片数据无效');
+        }
+        
         const link = document.createElement('a');
         link.download = `design_${sizeData.name}_${Date.now()}.png`;
         link.href = dataUrl;
         link.click();
         
         exported++;
-        if (exported === total) {
+        checkDone();
+      }).catch(err => {
+        failed++;
+        failedSizes.push(sizeData.name);
+        checkDone();
+      });
+      
+      function checkDone() {
+        if (exported + failed === validSizes.length) {
           state.canvasWidth = originalWidth;
           state.canvasHeight = originalHeight;
           state.elements = originalElements;
           updateCanvasSize();
           renderElements();
           $('batchExportModal').style.display = 'none';
-          showToast(`批量导出完成，共 ${total} 张图片`);
+          
+          if (failed === 0) {
+            showToast(`批量导出完成，共 ${exported} 张图片`);
+          } else {
+            showToast(`导出完成：成功 ${exported} 张，失败 ${failed} 张（${failedSizes.slice(-failed).join('、')}）`, 'warning');
+          }
         }
-      });
+      }
     }, i * 600);
   });
 }
@@ -2492,9 +2530,17 @@ function exportPDF() {
 
 function generateCanvasImage() {
   return new Promise((resolve, reject) => {
+    const w = Number(state.canvasWidth);
+    const h = Number(state.canvasHeight);
+    
+    if (!w || !h || w <= 0 || h <= 0 || isNaN(w) || isNaN(h)) {
+      reject(new Error('画布尺寸无效'));
+      return;
+    }
+    
     const offscreenCanvas = document.createElement('canvas');
-    offscreenCanvas.width = state.canvasWidth;
-    offscreenCanvas.height = state.canvasHeight;
+    offscreenCanvas.width = w;
+    offscreenCanvas.height = h;
     const ctx = offscreenCanvas.getContext('2d');
     
     // 绘制背景
@@ -2536,18 +2582,18 @@ function generateCanvasImage() {
       const h = el.height;
       const opacity = (el.opacity !== undefined ? el.opacity : 100) / 100;
       
-      ctx.save();
-      ctx.globalAlpha = opacity;
-      
-      if (el.rotation) {
-        const centerX = x + w / 2;
-        const centerY = y + h / 2;
-        ctx.translate(centerX, centerY);
-        ctx.rotate(el.rotation * Math.PI / 180);
-        ctx.translate(-centerX, -centerY);
-      }
-      
       if (el.type === 'text') {
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        
+        if (el.rotation) {
+          const centerX = x + w / 2;
+          const centerY = y + h / 2;
+          ctx.translate(centerX, centerY);
+          ctx.rotate(el.rotation * Math.PI / 180);
+          ctx.translate(-centerX, -centerY);
+        }
+        
         ctx.font = `${el.fontWeight || 400} ${el.fontSize || 32}px ${el.fontFamily || 'sans-serif'}`;
         ctx.fillStyle = el.color || '#333';
         ctx.textAlign = el.textAlign || 'left';
@@ -2592,6 +2638,17 @@ function generateCanvasImage() {
         completed++;
         if (completed === total) resolve(offscreenCanvas.toDataURL('image/png'));
       } else if (el.type === 'shape') {
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        
+        if (el.rotation) {
+          const centerX = x + w / 2;
+          const centerY = y + h / 2;
+          ctx.translate(centerX, centerY);
+          ctx.rotate(el.rotation * Math.PI / 180);
+          ctx.translate(-centerX, -centerY);
+        }
+        
         const shapeType = el.shapeType || 'rect';
         ctx.fillStyle = el.fill || '#667eea';
         
