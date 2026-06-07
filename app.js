@@ -894,6 +894,41 @@ function getCanvasPositionFromEvent(e) {
   return { x, y };
 }
 
+function addImageToCanvas(src, position) {
+  const img = new Image();
+  img.onload = () => {
+    let w = img.width;
+    let h = img.height;
+    const maxSize = 400;
+    if (w > maxSize || h > maxSize) {
+      const ratio = Math.min(maxSize / w, maxSize / h);
+      w = w * ratio;
+      h = h * ratio;
+    }
+    
+    const element = {
+      id: genId(),
+      type: 'image',
+      src: src,
+      naturalWidth: img.width,
+      naturalHeight: img.height,
+      x: position ? position.x - w / 2 : (state.canvasWidth - w) / 2,
+      y: position ? position.y - h / 2 : (state.canvasHeight - h) / 2,
+      width: w,
+      height: h,
+      opacity: 100,
+      rotation: 0
+    };
+    
+    state.elements.push(element);
+    selectElement(element.id);
+    renderElements();
+    saveHistory();
+    showToast('已添加图片');
+  };
+  img.src = src;
+}
+
 function addAssetAtPosition(assetType, assetData, position) {
   if (assetType === 'icon') {
     const element = {
@@ -945,6 +980,8 @@ function addAssetAtPosition(assetType, assetData, position) {
     state.elements.push(element);
     selectElement(element.id);
     saveHistory();
+  } else if (assetType === 'image') {
+    addImageToCanvas(assetData, position);
   }
 }
 
@@ -1389,6 +1426,7 @@ function resetCrop() {
     
     const fitScale = Math.min(areaW / img.width, areaH / img.height) * 0.8;
     cropState.imgScale = fitScale;
+    cropState.baseScale = fitScale;
     
     const scaledW = img.width * fitScale;
     const scaledH = img.height * fitScale;
@@ -1399,6 +1437,11 @@ function resetCrop() {
     cropState.cropY = (areaH - scaledH * 0.7) / 2;
     cropState.cropW = scaledW * 0.7;
     cropState.cropH = scaledH * 0.7;
+    
+    cropState.ratio = 'free';
+    document.querySelectorAll('.ratio-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.ratio === 'free');
+    });
     
     $('cropZoomSlider').value = 100;
     $('cropZoomValue').textContent = '100%';
@@ -1907,6 +1950,7 @@ let batchState = {
   sizeData: [],
   selectedSizeIndices: [],
   draggingElementIndex: -1,
+  selectedElementIndex: -1,
   dragStartX: 0,
   dragStartY: 0,
   dragStartElX: 0,
@@ -2042,6 +2086,11 @@ function renderBatchPreview() {
     elDom.style.height = el.height + 'px';
     elDom.style.opacity = (el.opacity || 100) / 100;
     
+    if (idx === batchState.selectedElementIndex) {
+      elDom.style.outline = '2px solid #667eea';
+      elDom.style.outlineOffset = '1px';
+    }
+    
     if (el.rotation) {
       elDom.style.transform = `rotate(${el.rotation}deg)`;
     }
@@ -2088,6 +2137,7 @@ function startBatchDrag(e, elementIndex) {
   e.preventDefault();
   e.stopPropagation();
   
+  batchState.selectedElementIndex = elementIndex;
   batchState.draggingElementIndex = elementIndex;
   batchState.dragStartX = e.clientX;
   batchState.dragStartY = e.clientY;
@@ -2096,6 +2146,8 @@ function startBatchDrag(e, elementIndex) {
   const element = sizeData.elements[elementIndex];
   batchState.dragStartElX = element.x;
   batchState.dragStartElY = element.y;
+  
+  renderBatchPreview();
   
   document.addEventListener('mousemove', onBatchDrag);
   document.addEventListener('mouseup', stopBatchDrag);
@@ -2251,12 +2303,30 @@ function snapCurrentSizeToSafeZone() {
   const sizeData = batchState.sizeData[batchState.currentSizeIndex];
   if (!sizeData) return;
   
-  sizeData.elements.forEach(el => {
-    snapElementToSafeZone(el, sizeData.width, sizeData.height);
-  });
+  let snappedCount = 0;
+  
+  if (batchState.selectedElementIndex >= 0) {
+    const el = sizeData.elements[batchState.selectedElementIndex];
+    if (el && isElementOverflow(el, sizeData.width, sizeData.height)) {
+      snapElementToSafeZone(el, sizeData.width, sizeData.height);
+      snappedCount = 1;
+    }
+  } else {
+    sizeData.elements.forEach(el => {
+      if (isElementOverflow(el, sizeData.width, sizeData.height)) {
+        snapElementToSafeZone(el, sizeData.width, sizeData.height);
+        snappedCount++;
+      }
+    });
+  }
   
   renderBatchPreview();
-  showToast('已吸附到安全区');
+  
+  if (snappedCount > 0) {
+    showToast(`已吸附 ${snappedCount} 个元素到安全区`);
+  } else {
+    showToast('所有元素都在安全区内');
+  }
 }
 
 function resetCurrentSize() {
@@ -2581,7 +2651,26 @@ function generateCanvasImage() {
           ctx.beginPath();
           ctx.rect(x, y, w, h);
           ctx.clip();
-          ctx.drawImage(img, x, y, w, h);
+          
+          const imgRatio = img.width / img.height;
+          const targetRatio = w / h;
+          
+          let sx, sy, sw, sh;
+          let dx = x, dy = y, dw = w, dh = h;
+          
+          if (imgRatio > targetRatio) {
+            sh = img.height;
+            sw = img.height * targetRatio;
+            sx = (img.width - sw) / 2;
+            sy = 0;
+          } else {
+            sw = img.width;
+            sh = img.width / targetRatio;
+            sx = 0;
+            sy = (img.height - sh) / 2;
+          }
+          
+          ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
           ctx.restore();
           
           completed++;
@@ -2601,61 +2690,7 @@ function generateCanvasImage() {
   });
 }
 
-function batchExport() {
-  const checkboxes = document.querySelectorAll('#batchSizesList input[type="checkbox"]:checked');
-  if (checkboxes.length === 0) {
-    showToast('请选择至少一个尺寸', 'error');
-    return;
-  }
-  
-  const originalWidth = state.canvasWidth;
-  const originalHeight = state.canvasHeight;
-  const originalElements = JSON.parse(JSON.stringify(state.elements));
-  
-  let exported = 0;
-  const total = checkboxes.length;
-  
-  checkboxes.forEach((checkbox, i) => {
-    setTimeout(() => {
-      const width = parseInt(checkbox.dataset.width);
-      const height = parseInt(checkbox.dataset.height);
-      const sizeName = checkbox.closest('.batch-size-item').querySelector('.size-name').textContent;
-      
-      const scaleX = width / originalWidth;
-      const scaleY = height / originalHeight;
-      const scale = Math.min(scaleX, scaleY);
-      
-      state.canvasWidth = width;
-      state.canvasHeight = height;
-      state.elements = originalElements.map(el => ({
-        ...el,
-        x: el.x * scale + (width - originalWidth * scale) / 2,
-        y: el.y * scale + (height - originalHeight * scale) / 2,
-        width: el.width * scale,
-        height: el.height * scale,
-        fontSize: el.fontSize ? el.fontSize * scale : undefined
-      }));
-      
-      generateCanvasImage().then(dataUrl => {
-        const link = document.createElement('a');
-        link.download = `design_${sizeName}_${Date.now()}.png`;
-        link.href = dataUrl;
-        link.click();
-        
-        exported++;
-        if (exported === total) {
-          state.canvasWidth = originalWidth;
-          state.canvasHeight = originalHeight;
-          state.elements = originalElements;
-          updateCanvasSize();
-          renderElements();
-          $('batchExportModal').style.display = 'none';
-          showToast(`批量导出完成，共 ${total} 张图片`);
-        }
-      });
-    }, i * 600);
-  });
-}
+// ===== 草稿系统增强 =====
 
 // ====== 移动端预览 ======
 function showMobilePreview() {
@@ -3137,6 +3172,16 @@ function bindEvents() {
     checkOverflowForCurrentSize();
   });
   
+  // 点击预览画布空白处取消选中
+  if ($('batchPreviewCanvas')) {
+    $('batchPreviewCanvas').addEventListener('mousedown', (e) => {
+      if (e.target.id === 'batchPreviewCanvas' || e.target.classList.contains('safe-zone')) {
+        batchState.selectedElementIndex = -1;
+        renderBatchPreview();
+      }
+    });
+  }
+  
   // 移动端预览
   $('closeMobilePreview').addEventListener('click', () => $('mobilePreviewModal').style.display = 'none');
   
@@ -3177,8 +3222,7 @@ function bindEvents() {
   $('cropZoomSlider').addEventListener('input', (e) => {
     const val = parseInt(e.target.value);
     $('cropZoomValue').textContent = val + '%';
-    const baseScale = cropState.imgScale / (parseInt($('cropZoomSlider').defaultValue || 100) / 100);
-    cropState.imgScale = baseScale * (val / 100);
+    cropState.imgScale = cropState.baseScale * (val / 100);
     updateCropUI();
   });
   
