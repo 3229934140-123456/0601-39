@@ -77,6 +77,13 @@
             <button class="sub-tab-btn" data-asset="icons">🔷 图标</button>
             <button class="sub-tab-btn" data-asset="shapes">⬜ 形状</button>
           </div>
+          <div class="assets-search-box" id="assetsSearchBox" style="display:none;">
+            <input type="text" id="assetsSearch" placeholder="搜索素材...">
+          </div>
+          <div class="assets-sub-tabs" id="imageSubTabs" style="display:none;">
+            <button class="sub-tab-btn small active" data-images-tab="all">全部</button>
+            <button class="sub-tab-btn small" data-images-tab="mine">我的素材</button>
+          </div>
           <div class="assets-grid" id="assetsGrid">
             <!-- 素材将通过 JS 动态生成 -->
           </div>
@@ -234,8 +241,9 @@
         <div class="properties-panel" id="propertiesPanel">
           <h4>属性</h4>
           <div class="image-actions" id="imageActions" style="display:none; margin-bottom:12px;">
-            <button class="btn-secondary btn-sm" id="cropImageBtn" style="flex:1; margin-right:6px;">✂ 裁剪</button>
-            <button class="btn-secondary btn-sm" id="replaceImageBtn" style="flex:1;">🔄 替换</button>
+            <button class="btn-secondary btn-sm" id="cropImageBtn" style="flex:1; margin-right:4px;">✂ 裁剪</button>
+            <button class="btn-secondary btn-sm" id="replaceImageBtn" style="flex:1; margin-right:4px;">🔄 替换</button>
+            <button class="btn-secondary btn-sm" id="favoriteImageBtn" style="flex:1;">⭐ 收藏</button>
             <input type="file" id="replaceImageInput" accept="image/*" style="display:none;">
           </div>
           <div class="prop-group">
@@ -300,14 +308,23 @@
           <div class="batch-preview-area">
             <div class="preview-header">
               <span class="preview-size-name" id="batchPreviewSizeName">方图 (1080×1080)</span>
-              <div class="preview-tips">拖拽调整元素位置，确认后导出</div>
+              <div class="preview-actions-top">
+                <label class="safe-zone-toggle">
+                  <input type="checkbox" id="showSafeZone" checked> 安全区
+                </label>
+                <span class="overflow-warning" id="overflowWarning" style="display:none;">
+                  ⚠ 有内容越界
+                </span>
+              </div>
             </div>
             <div class="batch-preview-canvas-wrapper" id="batchPreviewWrapper">
               <div class="batch-preview-canvas" id="batchPreviewCanvas">
+                <div class="safe-zone" id="safeZoneOverlay"></div>
                 <!-- 预览内容 -->
               </div>
             </div>
             <div class="preview-actions">
+              <button class="btn-secondary btn-sm" id="snapToSafeBtn">📌 吸附到安全区</button>
               <button class="btn-secondary btn-sm" id="resetSizeBtn">重置此尺寸</button>
               <button class="btn-secondary btn-sm" id="applyToAllBtn">应用到全部</button>
             </div>
@@ -409,6 +426,15 @@
             <div class="crop-overlay crop-overlay-right"></div>
           </div>
           <div class="crop-controls">
+            <div class="crop-control-group">
+              <label>裁剪比例</label>
+              <div class="crop-ratio-buttons">
+                <button class="ratio-btn active" data-ratio="free">自由</button>
+                <button class="ratio-btn" data-ratio="1:1">1:1</button>
+                <button class="ratio-btn" data-ratio="4:5">4:5</button>
+                <button class="ratio-btn" data-ratio="16:9">16:9</button>
+              </div>
+            </div>
             <div class="crop-control-group">
               <label>缩放</label>
               <input type="range" id="cropZoomSlider" min="10" max="300" value="100">

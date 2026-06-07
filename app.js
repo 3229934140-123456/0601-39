@@ -139,12 +139,12 @@ const canvasWrapper = $('canvasWrapper');
 
 // ====== 初始化 ======
 function init() {
+  loadMyAssets();
   renderTemplates();
   renderAssets('images');
   renderBrandColors();
   renderColorSchemes();
   renderSavedColors();
-  renderBatchSizes();
   updateCanvasSize();
   updateZoom();
   saveHistory();
@@ -567,11 +567,91 @@ function applyTemplate(tpl) {
 
 // ====== 素材系统 ======
 let currentAssetTab = 'images';
+let currentImageTab = 'all';
+let assetSearchKeyword = '';
+let myImageAssets = [];
+
+function loadMyAssets() {
+  try {
+    const saved = localStorage.getItem('myImageAssets');
+    if (saved) {
+      myImageAssets = JSON.parse(saved);
+    }
+  } catch (e) {
+    myImageAssets = [];
+  }
+}
+
+function saveMyAssets() {
+  try {
+    localStorage.setItem('myImageAssets', JSON.stringify(myImageAssets));
+  } catch (e) {
+    showToast('素材库保存失败，可能是存储已满', 'error');
+  }
+}
+
+function isAssetFavorite(src) {
+  return myImageAssets.some(a => a.src === src);
+}
+
+function toggleFavoriteAsset(src, name) {
+  const idx = myImageAssets.findIndex(a => a.src === src);
+  if (idx >= 0) {
+    myImageAssets.splice(idx, 1);
+    showToast('已取消收藏');
+  } else {
+    myImageAssets.unshift({
+      id: 'my_' + Date.now(),
+      src: src,
+      name: name || '我的图片',
+      createTime: Date.now()
+    });
+    showToast('已收藏到素材库');
+  }
+  saveMyAssets();
+  if (currentAssetTab === 'images') {
+    renderAssets('images');
+  }
+}
+
+function deleteMyAsset(id) {
+  const idx = myImageAssets.findIndex(a => a.id === id);
+  if (idx >= 0) {
+    myImageAssets.splice(idx, 1);
+    saveMyAssets();
+    showToast('已删除');
+    if (currentImageTab === 'mine' || currentAssetTab === 'images') {
+      renderAssets('images');
+    }
+  }
+}
+
+function renameMyAsset(id, newName) {
+  const asset = myImageAssets.find(a => a.id === id);
+  if (asset) {
+    asset.name = newName;
+    saveMyAssets();
+    if (currentAssetTab === 'images') {
+      renderAssets('images');
+    }
+  }
+}
 
 function renderAssets(type) {
   currentAssetTab = type;
   const grid = $('assetsGrid');
   grid.innerHTML = '';
+  
+  const searchBox = $('assetsSearchBox');
+  const subTabs = $('imageSubTabs');
+  
+  if (type === 'images') {
+    searchBox.style.display = 'block';
+    subTabs.style.display = 'flex';
+  } else {
+    searchBox.style.display = 'none';
+    subTabs.style.display = 'none';
+  }
   
   if (type === 'icons') {
     iconAssets.forEach(icon => {
@@ -601,31 +681,110 @@ function renderAssets(type) {
     });
   } else if (type === 'images') {
     const sampleImages = [
-      { bg: 'linear-gradient(135deg, #667eea, #764ba2)', name: '渐变紫' },
-      { bg: 'linear-gradient(135deg, #f093fb, #f5576c)', name: '渐变粉' },
-      { bg: 'linear-gradient(135deg, #4facfe, #00f2fe)', name: '渐变蓝' },
-      { bg: 'linear-gradient(135deg, #11998e, #38ef7d)', name: '渐变绿' },
-      { bg: 'linear-gradient(135deg, #f7971e, #ffd200)', name: '渐变橙' },
-      { bg: 'linear-gradient(135deg, #0c0c0c, #1a1a2e)', name: '深色' },
-      { bg: 'linear-gradient(135deg, #a8edea, #fed6e3)', name: '清新' },
-      { bg: 'linear-gradient(135deg, #ffecd2, #fcb69f)', name: '暖色' },
-      { bg: 'linear-gradient(180deg, #f8f9fa, #e9ecef)', name: '浅灰' }
+      { bg: 'linear-gradient(135deg, #667eea, #764ba2)', name: '渐变紫', isSample: true },
+      { bg: 'linear-gradient(135deg, #f093fb, #f5576c)', name: '渐变粉', isSample: true },
+      { bg: 'linear-gradient(135deg, #4facfe, #00f2fe)', name: '渐变蓝', isSample: true },
+      { bg: 'linear-gradient(135deg, #11998e, #38ef7d)', name: '渐变绿', isSample: true },
+      { bg: 'linear-gradient(135deg, #f7971e, #ffd200)', name: '渐变橙', isSample: true },
+      { bg: 'linear-gradient(135deg, #0c0c0c, #1a1a2e)', name: '深色', isSample: true },
+      { bg: 'linear-gradient(135deg, #a8edea, #fed6e3)', name: '清新', isSample: true },
+      { bg: 'linear-gradient(135deg, #ffecd2, #fcb69f)', name: '暖色', isSample: true },
+      { bg: 'linear-gradient(180deg, #f8f9fa, #e9ecef)', name: '浅灰', isSample: true }
     ];
     
-    sampleImages.forEach(img => {
+    let imageList = [];
+    
+    if (currentImageTab === 'all') {
+      imageList = [...sampleImages, ...myImageAssets.map(a => ({ ...a, isMine: true }))];
+    } else {
+      imageList = myImageAssets.map(a => ({ ...a, isMine: true }));
+    }
+    
+    if (assetSearchKeyword) {
+      const keyword = assetSearchKeyword.toLowerCase();
+      imageList = imageList.filter(img => 
+        (img.name && img.name.toLowerCase().includes(keyword))
+      );
+    }
+    
+    if (imageList.length === 0) {
+      grid.innerHTML = '<div style="text-align:center;color:#909399;padding:40px 0;font-size:13px;">暂无素材</div>';
+      return;
+    }
+    
+    imageList.forEach(img => {
       const item = document.createElement('div');
       item.className = 'asset-item draggable-asset';
-      item.style.background = img.bg;
-      item.title = img.name + ' (点击设为背景，拖拽添加为图层)';
       item.draggable = true;
-      item.dataset.assetType = 'imageBg';
-      item.dataset.assetData = img.bg;
-      item.dataset.assetName = img.name;
+      
+      if (img.isMine) {
+        item.style.backgroundImage = `url(${img.src})`;
+        item.style.backgroundSize = 'cover';
+        item.style.backgroundPosition = 'center';
+        item.dataset.assetType = 'image';
+        item.dataset.assetData = img.src;
+        item.dataset.assetName = img.name;
+        item.title = img.name + ' (点击设为背景，拖拽添加为图层)';
+      } else {
+        item.style.background = img.bg;
+        item.dataset.assetType = 'imageBg';
+        item.dataset.assetData = img.bg;
+        item.dataset.assetName = img.name;
+        item.title = img.name + ' (点击设为背景，拖拽添加为图层)';
+      }
+      
+      const nameEl = document.createElement('div');
+      nameEl.className = 'asset-name';
+      nameEl.textContent = img.name;
+      item.appendChild(nameEl);
+      
+      const favBtn = document.createElement('button');
+      favBtn.className = 'asset-favorite-btn';
+      const isFav = img.isMine || isAssetFavorite(img.bg || img.src);
+      if (isFav) favBtn.classList.add('active');
+      favBtn.innerHTML = isFav ? '⭐' : '☆';
+      favBtn.title = img.isMine ? '已收藏' : '收藏到素材库';
+      favBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (img.isMine) {
+          deleteMyAsset(img.id);
+        } else {
+          toggleFavoriteAsset(img.bg, img.name);
+        }
+      });
+      item.appendChild(favBtn);
+      
+      if (img.isMine) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'asset-delete-btn';
+        delBtn.innerHTML = '🗑';
+        delBtn.title = '删除';
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm('确定要删除这个素材吗？')) {
+            deleteMyAsset(img.id);
+          }
+        });
+        item.appendChild(delBtn);
+        
+        item.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          const newName = prompt('请输入新名称：', img.name);
+          if (newName && newName.trim()) {
+            renameMyAsset(img.id, newName.trim());
+          }
+        });
+      }
+      
       item.addEventListener('click', () => {
-        canvas.style.background = img.bg;
-        state.canvasBg = img.bg;
-        saveHistory();
-        showToast('已设置为画布背景');
+        if (img.isMine) {
+          addImageToCanvas(img.src);
+        } else {
+          canvas.style.background = img.bg;
+          state.canvasBg = img.bg;
+          saveHistory();
+          showToast('已设置为画布背景');
+        }
       });
       item.addEventListener('dragstart', handleAssetDragStart);
       grid.appendChild(item);
@@ -847,7 +1006,8 @@ let cropState = {
   startCropX: 0,
   startCropY: 0,
   startCropW: 0,
-  startCropH: 0
+  startCropH: 0,
+  ratio: 'free'
 };
 
 function openCropModal(elementId) {
@@ -884,6 +1044,11 @@ function openCropModal(elementId) {
     
     updateCropUI();
     bindCropEvents();
+    
+    cropState.ratio = 'free';
+    document.querySelectorAll('.ratio-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.ratio === 'free');
+    });
     
     $('cropImageModal').style.display = 'flex';
     $('cropZoomSlider').value = 100;
@@ -1004,32 +1169,133 @@ function onCropDrag(e) {
     cropState.cropX = newX;
     cropState.cropY = newY;
   } else {
-    const handles = {
-      nw: { x: dx, y: dy, w: -dx, h: -dy },
-      n: { x: 0, y: dy, w: 0, h: -dy },
-      ne: { x: 0, y: dy, w: dx, h: -dy },
-      w: { x: dx, y: 0, w: -dx, h: 0 },
-      e: { x: 0, y: 0, w: dx, h: 0 },
-      sw: { x: dx, y: 0, w: -dx, h: dy },
-      s: { x: 0, y: 0, w: 0, h: dy },
-      se: { x: 0, y: 0, w: dx, h: dy }
-    };
+    const ratio = getCropRatioValue();
+    const minSize = 20;
     
-    const h = handles[cropState.dragType];
-    if (h) {
-      let newX = cropState.startCropX + h.x;
-      let newY = cropState.startCropY + h.y;
-      let newW = cropState.startCropW + h.w;
-      let newH = cropState.startCropH + h.h;
+    if (ratio) {
+      const handle = cropState.dragType;
+      let dx = e.clientX - cropState.startX;
+      dy = e.clientY - cropState.startY;
       
-      const minSize = 20;
-      if (newW >= minSize) {
-        cropState.cropX = Math.max(0, newX);
-        cropState.cropW = newW;
+      let newW = cropState.startCropW;
+      let newH = cropState.startCropH;
+      let newX = cropState.startCropX;
+      let newY = cropState.startCropY;
+      
+      if (handle === 'se') {
+        newW = cropState.startCropW + dx;
+        newH = newW / ratio;
+        if (newH < minSize) {
+          newH = minSize;
+          newW = newH * ratio;
+        }
+      } else if (handle === 'sw') {
+        newW = cropState.startCropW - dx;
+        newH = newW / ratio;
+        if (newH < minSize) {
+          newH = minSize;
+          newW = newH * ratio;
+        }
+        newX = cropState.startCropX + cropState.startCropW - newW;
+        newY = cropState.startCropY + cropState.startCropH - newH;
+      } else if (handle === 'ne') {
+        newW = cropState.startCropW + dx;
+        newH = newW / ratio;
+        if (newH < minSize) {
+          newH = minSize;
+          newW = newH * ratio;
+        }
+        newY = cropState.startCropY + cropState.startCropH - newH;
+      } else if (handle === 'nw') {
+        newW = cropState.startCropW + dx;
+        newH = newW / ratio;
+        if (newH < minSize) {
+          newH = minSize;
+          newW = newH * ratio;
+        }
+        newX = cropState.startCropX + cropState.startCropW - newW;
+      } else if (handle === 'e' || handle === 'w') {
+        if (handle === 'e') {
+          newW = cropState.startCropW + dx;
+        } else {
+          newW = cropState.startCropW - dx;
+          newX = cropState.startCropX + cropState.startCropW - newW;
+        }
+        if (newW < minSize) newW = minSize;
+        newH = newW / ratio;
+        newY = cropState.startCropY + (cropState.startCropH - newH) / 2;
+      } else if (handle === 'n' || handle === 's') {
+        if (handle === 's') {
+          newH = cropState.startCropH + dy;
+        } else {
+          newH = cropState.startCropH - dy;
+          newY = cropState.startCropY + cropState.startCropH - newH;
+        }
+        if (newH < minSize) newH = minSize;
+        newW = newH * ratio;
+        newX = cropState.startCropX + (cropState.startCropW - newW) / 2;
       }
-      if (newH >= minSize) {
-        cropState.cropY = Math.max(0, newY);
-        cropState.cropH = newH;
+      
+      const cropArea = $('cropArea');
+      const areaW = cropArea.clientWidth;
+      const areaH = cropArea.clientHeight;
+      
+      if (newX < 0) {
+        newX = 0;
+        newW = cropState.startCropX + cropState.startCropW;
+        newH = newW / ratio;
+        newY = cropState.startCropY + (cropState.startCropH - newH) / 2;
+      }
+      if (newY < 0) {
+        newY = 0;
+        newH = cropState.startCropY + cropState.startCropH;
+        newW = newH * ratio;
+        newX = cropState.startCropX + (cropState.startCropW - newW) / 2;
+      }
+      if (newX + newW > areaW) {
+        newW = areaW - cropState.startCropX;
+        newH = newW / ratio;
+        newY = cropState.startCropY + (cropState.startCropH - newH) / 2;
+        newX = cropState.startCropX;
+      }
+      if (newY + newH > areaH) {
+        newH = areaH - cropState.startCropY;
+        newW = newH * ratio;
+        newX = cropState.startCropX + (cropState.startCropW - newW) / 2;
+        newY = cropState.startCropY;
+      }
+      
+      cropState.cropX = newX;
+      cropState.cropY = newY;
+      cropState.cropW = newW;
+      cropState.cropH = newH;
+    } else {
+      const handles = {
+        nw: { x: dx, y: dy, w: -dx, h: -dy },
+        n: { x: 0, y: dy, w: 0, h: -dy },
+        ne: { x: 0, y: dy, w: dx, h: -dy },
+        w: { x: dx, y: 0, w: -dx, h: 0 },
+        e: { x: 0, y: 0, w: dx, h: 0 },
+        sw: { x: dx, y: 0, w: -dx, h: dy },
+        s: { x: 0, y: 0, w: 0, h: dy },
+        se: { x: 0, y: 0, w: dx, h: dy }
+      };
+      
+      const h = handles[cropState.dragType];
+      if (h) {
+        let newX = cropState.startCropX + h.x;
+        let newY = cropState.startCropY + h.y;
+        let newW = cropState.startCropW + h.w;
+        let newH = cropState.startCropH + h.h;
+        
+        if (newW >= minSize) {
+          cropState.cropX = Math.max(0, newX);
+          cropState.cropW = newW;
+        }
+        if (newH >= minSize) {
+          cropState.cropY = Math.max(0, newY);
+          cropState.cropH = newH;
+        }
       }
     }
   }
@@ -1042,6 +1308,46 @@ function stopCropDrag() {
   cropState.dragType = '';
   document.removeEventListener('mousemove', onCropDrag);
   document.removeEventListener('mouseup', stopCropDrag);
+}
+
+function getCropRatioValue() {
+  if (cropState.ratio === 'free') return null;
+  const [w, h] = cropState.ratio.split(':').map(Number);
+  return w / h;
+}
+
+function setCropRatio(ratio) {
+  cropState.ratio = ratio;
+  
+  document.querySelectorAll('.ratio-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ratio === ratio);
+  });
+  
+  if (ratio === 'free') {
+    updateCropUI();
+    return;
+  }
+  
+  const targetRatio = getCropRatioValue();
+  const cropArea = $('cropArea');
+  const areaW = cropArea.clientWidth;
+  const areaH = cropArea.clientHeight;
+  
+  let newW, newH;
+  if (areaW / areaH > targetRatio) {
+    newH = areaH * 0.8;
+    newW = newH * targetRatio;
+  } else {
+    newW = areaW * 0.8;
+    newH = newW / targetRatio;
+  }
+  
+  cropState.cropW = newW;
+  cropState.cropH = newH;
+  cropState.cropX = (areaW - newW) / 2;
+  cropState.cropY = (areaH - newH) / 2;
+  
+  updateCropUI();
 }
 
 function confirmCrop() {
@@ -1110,21 +1416,9 @@ function replaceImage(file) {
   reader.onload = (e) => {
     const img = new Image();
     img.onload = () => {
-      const oldW = element.width;
-      const oldH = element.height;
-      
-      let newW = img.width;
-      let newH = img.height;
-      const maxSize = Math.max(oldW, oldH) * 1.5;
-      if (newW > maxSize || newH > maxSize) {
-        const ratio = Math.min(maxSize / newW, maxSize / newH);
-        newW = newW * ratio;
-        newH = newH * ratio;
-      }
-      
       element.src = e.target.result;
-      element.width = newW;
-      element.height = newH;
+      element.naturalWidth = img.width;
+      element.naturalHeight = img.height;
       
       renderElements();
       saveHistory();
@@ -1736,7 +2030,7 @@ function renderBatchPreview() {
     previewCanvas.style.background = '#fff';
   }
   
-  previewCanvas.innerHTML = '';
+  previewCanvas.innerHTML = '<div class="safe-zone" id="safeZoneOverlay"></div>';
   
   sizeData.elements.forEach((el, idx) => {
     const elDom = document.createElement('div');
@@ -1785,6 +2079,9 @@ function renderBatchPreview() {
     elDom.addEventListener('mousedown', (e) => startBatchDrag(e, idx));
     previewCanvas.appendChild(elDom);
   });
+  
+  updateSafeZoneDisplay();
+  checkOverflowForCurrentSize();
 }
 
 function startBatchDrag(e, elementIndex) {
@@ -1827,6 +2124,139 @@ function stopBatchDrag() {
   batchState.draggingElementIndex = -1;
   document.removeEventListener('mousemove', onBatchDrag);
   document.removeEventListener('mouseup', stopBatchDrag);
+  checkOverflowForCurrentSize();
+}
+
+function getSafeZoneMargin(sizeWidth, sizeHeight) {
+  const ratio = sizeWidth / sizeHeight;
+  if (ratio > 1.5) {
+    return { left: sizeWidth * 0.15, top: sizeHeight * 0.1, right: sizeWidth * 0.15, bottom: sizeHeight * 0.1 };
+  } else if (ratio < 0.7) {
+    return { left: sizeWidth * 0.1, top: sizeHeight * 0.15, right: sizeWidth * 0.1, bottom: sizeHeight * 0.15 };
+  } else {
+    return { left: sizeWidth * 0.12, top: sizeHeight * 0.12, right: sizeWidth * 0.12, bottom: sizeHeight * 0.12 };
+  }
+}
+
+function getSafeZoneRect(sizeWidth, sizeHeight) {
+  const margin = getSafeZoneMargin(sizeWidth, sizeHeight);
+  return {
+    x: margin.left,
+    y: margin.top,
+    width: sizeWidth - margin.left - margin.right,
+    height: sizeHeight - margin.top - margin.bottom
+  };
+}
+
+function isElementOverflow(element, sizeWidth, sizeHeight) {
+  const safeZone = getSafeZoneRect(sizeWidth, sizeHeight);
+  const elRight = element.x + element.width;
+  const elBottom = element.y + element.height;
+  
+  return element.x < safeZone.x ||
+         element.y < safeZone.y ||
+         elRight > safeZone.x + safeZone.width ||
+         elBottom > safeZone.y + safeZone.height;
+}
+
+function getOverflowElements(elements, sizeWidth, sizeHeight) {
+  return elements.filter(el => isElementOverflow(el, sizeWidth, sizeHeight));
+}
+
+function updateSafeZoneDisplay() {
+  const sizeData = batchState.sizeData[batchState.currentSizeIndex];
+  if (!sizeData) return;
+  
+  const safeZoneEl = $('safeZoneOverlay');
+  const showSafe = $('showSafeZone').checked;
+  
+  if (showSafe) {
+    const safeZone = getSafeZoneRect(sizeData.width, sizeData.height);
+    safeZoneEl.style.display = 'block';
+    safeZoneEl.style.left = safeZone.x + 'px';
+    safeZoneEl.style.top = safeZone.y + 'px';
+    safeZoneEl.style.width = safeZone.width + 'px';
+    safeZoneEl.style.height = safeZone.height + 'px';
+  } else {
+    safeZoneEl.style.display = 'none';
+  }
+}
+
+function checkOverflowForCurrentSize() {
+  const sizeData = batchState.sizeData[batchState.currentSizeIndex];
+  if (!sizeData) return;
+  
+  const overflowEls = getOverflowElements(sizeData.elements, sizeData.width, sizeData.height);
+  const warningEl = $('overflowWarning');
+  
+  if (overflowEls.length > 0) {
+    warningEl.style.display = 'inline-block';
+    warningEl.textContent = `⚠ ${overflowEls.length} 个元素越界`;
+  } else {
+    warningEl.style.display = 'none';
+  }
+  
+  document.querySelectorAll('.preview-element').forEach((el, idx) => {
+    if (isElementOverflow(sizeData.elements[idx], sizeData.width, sizeData.height)) {
+      el.classList.add('overflow');
+    } else {
+      el.classList.remove('overflow');
+    }
+  });
+  
+  updateSizeListOverflowBadges();
+}
+
+function updateSizeListOverflowBadges() {
+  batchState.sizeData.forEach((sizeData, idx) => {
+    const itemEl = document.querySelector(`.batch-size-item[data-index="${idx}"]`);
+    if (!itemEl) return;
+    
+    let badgeEl = itemEl.querySelector('.overflow-badge');
+    const overflowEls = getOverflowElements(sizeData.elements, sizeData.width, sizeData.height);
+    
+    if (overflowEls.length > 0) {
+      if (!badgeEl) {
+        badgeEl = document.createElement('span');
+        badgeEl.className = 'overflow-badge';
+        itemEl.querySelector('.size-name').appendChild(badgeEl);
+      }
+      badgeEl.textContent = overflowEls.length;
+    } else {
+      if (badgeEl) badgeEl.remove();
+    }
+  });
+}
+
+function snapElementToSafeZone(element, sizeWidth, sizeHeight) {
+  const safeZone = getSafeZoneRect(sizeWidth, sizeHeight);
+  const safeRight = safeZone.x + safeZone.width;
+  const safeBottom = safeZone.y + safeZone.height;
+  
+  if (element.x < safeZone.x) {
+    element.x = safeZone.x;
+  }
+  if (element.y < safeZone.y) {
+    element.y = safeZone.y;
+  }
+  if (element.x + element.width > safeRight) {
+    element.x = safeRight - element.width;
+  }
+  if (element.y + element.height > safeBottom) {
+    element.y = safeBottom - element.height;
+  }
+}
+
+function snapCurrentSizeToSafeZone() {
+  const sizeData = batchState.sizeData[batchState.currentSizeIndex];
+  if (!sizeData) return;
+  
+  sizeData.elements.forEach(el => {
+    snapElementToSafeZone(el, sizeData.width, sizeData.height);
+  });
+  
+  renderBatchPreview();
+  showToast('已吸附到安全区');
 }
 
 function resetCurrentSize() {
@@ -2490,13 +2920,44 @@ function bindEvents() {
   });
   
   // 素材子 Tab
-  document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+  document.querySelectorAll('.assets-tabs .sub-tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.assets-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       renderAssets(btn.dataset.asset);
     });
   });
+  
+  // 图片子 Tab（全部/我的素材）
+  document.querySelectorAll('.assets-sub-tabs .sub-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.assets-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentImageTab = btn.dataset.imagesTab;
+      renderAssets('images');
+    });
+  });
+  
+  // 素材搜索
+  if ($('assetsSearch')) {
+    $('assetsSearch').addEventListener('input', (e) => {
+      assetSearchKeyword = e.target.value;
+      renderAssets('images');
+    });
+  }
+  
+  // 收藏当前选中的图片
+  if ($('favoriteImageBtn')) {
+    $('favoriteImageBtn').addEventListener('click', () => {
+      const selected = getElementById(state.selectedElementIds[0]);
+      if (!selected || selected.type !== 'image') return;
+      
+      const name = prompt('请输入素材名称：', '我的图片');
+      if (name && name.trim()) {
+        toggleFavoriteAsset(selected.src, name.trim());
+      }
+    });
+  }
   
   // 模板搜索
   $('templateSearch').addEventListener('input', renderTemplates);
@@ -2639,7 +3100,10 @@ function bindEvents() {
   $('saveDraftBtn').addEventListener('click', saveDraft);
   $('exportPngBtn').addEventListener('click', exportPNG);
   $('exportPdfBtn').addEventListener('click', exportPDF);
-  $('batchExportBtn').addEventListener('click', () => $('batchExportModal').style.display = 'flex');
+  $('batchExportBtn').addEventListener('click', () => {
+    renderBatchSizes();
+    $('batchExportModal').style.display = 'flex';
+  });
   
   // 尺寸选择
   $('canvasSizeSelect').addEventListener('change', (e) => {
@@ -2667,6 +3131,11 @@ function bindEvents() {
   $('confirmBatchExport').addEventListener('click', batchExport);
   $('resetSizeBtn').addEventListener('click', resetCurrentSize);
   $('applyToAllBtn').addEventListener('click', applyToAllSizes);
+  $('snapToSafeBtn').addEventListener('click', snapCurrentSizeToSafeZone);
+  $('showSafeZone').addEventListener('change', () => {
+    updateSafeZoneDisplay();
+    checkOverflowForCurrentSize();
+  });
   
   // 移动端预览
   $('closeMobilePreview').addEventListener('click', () => $('mobilePreviewModal').style.display = 'none');
@@ -2711,6 +3180,13 @@ function bindEvents() {
     const baseScale = cropState.imgScale / (parseInt($('cropZoomSlider').defaultValue || 100) / 100);
     cropState.imgScale = baseScale * (val / 100);
     updateCropUI();
+  });
+  
+  // 裁剪比例按钮
+  document.querySelectorAll('.ratio-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setCropRatio(btn.dataset.ratio);
+    });
   });
   
   // 点击模态框背景关闭
