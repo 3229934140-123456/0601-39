@@ -233,6 +233,11 @@
         <!-- 属性面板 -->
         <div class="properties-panel" id="propertiesPanel">
           <h4>属性</h4>
+          <div class="image-actions" id="imageActions" style="display:none; margin-bottom:12px;">
+            <button class="btn-secondary btn-sm" id="cropImageBtn" style="flex:1; margin-right:6px;">✂ 裁剪</button>
+            <button class="btn-secondary btn-sm" id="replaceImageBtn" style="flex:1;">🔄 替换</button>
+            <input type="file" id="replaceImageInput" accept="image/*" style="display:none;">
+          </div>
           <div class="prop-group">
             <label>X 坐标</label>
             <input type="number" id="posXInput">
@@ -280,13 +285,33 @@
 
     <!-- 批量导出模态框 -->
     <div class="modal-overlay" id="batchExportModal" style="display:none;">
-      <div class="modal-content">
+      <div class="modal-content batch-export-modal">
         <div class="modal-header">
           <h3>批量导出多尺寸</h3>
           <button class="close-btn" id="closeBatchExport">✕</button>
         </div>
-        <div class="batch-sizes-list" id="batchSizesList">
-          <!-- 尺寸选项 -->
+        <div class="batch-export-container">
+          <div class="batch-size-sidebar">
+            <div class="sidebar-title">选择尺寸</div>
+            <div class="batch-sizes-list" id="batchSizesList">
+              <!-- 尺寸选项 -->
+            </div>
+          </div>
+          <div class="batch-preview-area">
+            <div class="preview-header">
+              <span class="preview-size-name" id="batchPreviewSizeName">方图 (1080×1080)</span>
+              <div class="preview-tips">拖拽调整元素位置，确认后导出</div>
+            </div>
+            <div class="batch-preview-canvas-wrapper" id="batchPreviewWrapper">
+              <div class="batch-preview-canvas" id="batchPreviewCanvas">
+                <!-- 预览内容 -->
+              </div>
+            </div>
+            <div class="preview-actions">
+              <button class="btn-secondary btn-sm" id="resetSizeBtn">重置此尺寸</button>
+              <button class="btn-secondary btn-sm" id="applyToAllBtn">应用到全部</button>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn-secondary" id="cancelBatchExport">取消</button>
@@ -321,13 +346,86 @@
 
     <!-- 草稿管理模态框 -->
     <div class="modal-overlay" id="draftsModal" style="display:none;">
-      <div class="modal-content">
+      <div class="modal-content drafts-modal">
         <div class="modal-header">
           <h3>我的草稿</h3>
           <button class="close-btn" id="closeDrafts">✕</button>
         </div>
+        <div class="drafts-toolbar">
+          <input type="text" id="draftSearch" placeholder="搜索草稿..." class="draft-search-input">
+        </div>
         <div class="drafts-list" id="draftsList">
           <!-- 草稿列表 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 保存草稿确认模态框 -->
+    <div class="modal-overlay" id="saveDraftModal" style="display:none;">
+      <div class="modal-content" style="width: 400px;">
+        <div class="modal-header">
+          <h3>保存草稿</h3>
+          <button class="close-btn" id="closeSaveDraft">✕</button>
+        </div>
+        <div class="save-draft-form">
+          <div class="prop-group">
+            <label>草稿名称</label>
+            <input type="text" id="draftNameInput" placeholder="请输入草稿名称">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="cancelSaveDraft">取消</button>
+          <button class="btn-secondary" id="saveAsNewDraftBtn">另存为新草稿</button>
+          <button class="btn-primary" id="confirmSaveDraftBtn">覆盖当前草稿</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 图片裁剪模态框 -->
+    <div class="modal-overlay" id="cropImageModal" style="display:none;">
+      <div class="modal-content crop-modal">
+        <div class="modal-header">
+          <h3>裁剪图片</h3>
+          <button class="close-btn" id="closeCropModal">✕</button>
+        </div>
+        <div class="crop-container">
+          <div class="crop-area" id="cropArea">
+            <div class="crop-image-wrapper" id="cropImageWrapper">
+              <img id="cropImage" draggable="false">
+            </div>
+            <div class="crop-box" id="cropBox">
+              <div class="crop-handle crop-handle-nw" data-handle="nw"></div>
+              <div class="crop-handle crop-handle-n" data-handle="n"></div>
+              <div class="crop-handle crop-handle-ne" data-handle="ne"></div>
+              <div class="crop-handle crop-handle-w" data-handle="w"></div>
+              <div class="crop-handle crop-handle-e" data-handle="e"></div>
+              <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
+              <div class="crop-handle crop-handle-s" data-handle="s"></div>
+              <div class="crop-handle crop-handle-se" data-handle="se"></div>
+            </div>
+            <div class="crop-overlay crop-overlay-top"></div>
+            <div class="crop-overlay crop-overlay-bottom"></div>
+            <div class="crop-overlay crop-overlay-left"></div>
+            <div class="crop-overlay crop-overlay-right"></div>
+          </div>
+          <div class="crop-controls">
+            <div class="crop-control-group">
+              <label>缩放</label>
+              <input type="range" id="cropZoomSlider" min="10" max="300" value="100">
+              <span id="cropZoomValue">100%</span>
+            </div>
+            <div class="crop-control-group">
+              <label>裁剪尺寸</label>
+              <span id="cropSizeInfo">0 × 0</span>
+            </div>
+            <div class="crop-control-group">
+              <button class="btn-secondary btn-sm" id="resetCropBtn">重置</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="cancelCropBtn">取消</button>
+          <button class="btn-primary" id="confirmCropBtn">确认裁剪</button>
         </div>
       </div>
     </div>
